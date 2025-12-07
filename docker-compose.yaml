@@ -1,0 +1,186 @@
+version: "3.9"
+
+services:
+  # ===========================================================================
+  # APPLICATION
+  # ===========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chalkandduster-api
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=development
+      - DATABASE_URL=postgresql+asyncpg://chalkandduster:chalkandduster@postgres:5432/chalkandduster
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=tinyllama
+      - OLLAMA_TIMEOUT=120
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      # LocalStack Snowflake emulator
+      - SNOWFLAKE_USE_LOCALSTACK=true
+      - LOCALSTACK_SNOWFLAKE_HOST=localstack
+      - LOCALSTACK_SNOWFLAKE_PORT=4566
+      - SNOWFLAKE_ACCOUNT=test
+      - SNOWFLAKE_USER=test
+      - SNOWFLAKE_PASSWORD=test
+      - SNOWFLAKE_WAREHOUSE=test_warehouse
+      - SNOWFLAKE_DATABASE=test_db
+      - SNOWFLAKE_SCHEMA=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      localstack:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src:ro
+    networks:
+      - chalkandduster
+
+  # ===========================================================================
+  # DATABASES
+  # ===========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: chalkandduster-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: chalkandduster
+      POSTGRES_USER: chalkandduster
+      POSTGRES_PASSWORD: chalkandduster
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chalkandduster"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chalkandduster
+
+  # ===========================================================================
+  # LLM - OLLAMA
+  # ===========================================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: chalkandduster-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - chalkandduster
+    deploy:
+      resources:
+        reservations:
+          memory: 4G
+
+  # Model initialization (runs once to pull the model)
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: chalkandduster-ollama-init
+    depends_on:
+      - ollama
+    entrypoint: >
+      /bin/sh -c "
+        echo 'Waiting for Ollama to be ready...' &&
+        sleep 10 &&
+        curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"tinyllama\"}' &&
+        echo 'Model pulled successfully'
+      "
+    networks:
+      - chalkandduster
+
+  # ===========================================================================
+  # AWS LOCALSTACK (with Snowflake Emulator - requires LOCALSTACK_AUTH_TOKEN)
+  # ===========================================================================
+  localstack:
+    image: localstack/snowflake:latest
+    container_name: chalkandduster-localstack
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"  # External service ports
+    environment:
+      - SERVICES=sqs,secretsmanager,sns,snowflake
+      - DEBUG=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
+      # Snowflake emulator settings
+      - SF_LOG=debug
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - ./infrastructure/docker/localstack-init.sh:/etc/localstack/init/ready.d/init.sh:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chalkandduster
+
+  # ===========================================================================
+  # OBSERVABILITY
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: chalkandduster-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - chalkandduster
+
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: chalkandduster-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./infrastructure/docker/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - chalkandduster
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: chalkandduster-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - chalkandduster
+
+networks:
+  chalkandduster:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  ollama_data:
+  localstack_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+

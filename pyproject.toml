@@ -1,0 +1,132 @@
+[project]
+name = "chalkandduster"
+version = "0.1.0"
+description = "Data Quality & AIOps Platform - YAML-first, LLM-enhanced"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Chalk and Duster Team" }]
+keywords = ["data-quality", "drift-detection", "aiops", "snowflake", "soda"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    # Web Framework
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    
+    # Database
+    "sqlalchemy>=2.0.25",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+    
+    # Snowflake
+    "snowflake-connector-python>=3.6.0",
+    "snowflake-sqlalchemy>=1.5.0",
+    
+    # Data Quality
+    "soda-core-snowflake>=3.0.0",
+    "pyyaml>=6.0.1",
+    "jsonschema>=4.21.0",
+    
+    # Statistics & Data Processing
+    "pandas>=2.1.0",
+    "numpy>=1.26.0",
+    "scipy>=1.12.0",
+    
+    # LLM (Ollama)
+    "httpx>=0.26.0",
+    
+    # AWS (LocalStack compatible)
+    "boto3>=1.34.0",
+    "aioboto3>=12.0.0",
+    
+    # Observability
+    "prometheus-client>=0.19.0",
+    "structlog>=24.1.0",
+    "opentelemetry-api>=1.22.0",
+    "opentelemetry-sdk>=1.22.0",
+    "opentelemetry-instrumentation-fastapi>=0.43b0",
+    
+    # Utilities
+    "python-multipart>=0.0.6",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "croniter>=2.0.0",
+    "tenacity>=8.2.0",
+    "jinja2>=3.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "httpx>=0.26.0",
+    "ruff>=0.1.0",
+    "black>=24.1.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+    "faker>=22.0.0",
+]
+
+airflow = [
+    "apache-airflow>=2.8.0",
+    "apache-airflow-providers-snowflake>=5.0.0",
+    "apache-airflow-providers-slack>=8.0.0",
+    "apache-airflow-providers-amazon>=8.0.0",
+]
+
+[project.scripts]
+chalkandduster = "chalkandduster.main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chalkandduster"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+src = ["src", "tests"]
+
+[tool.ruff.isort]
+known-first-party = ["chalkandduster"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --cov=chalkandduster --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["src/chalkandduster"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
