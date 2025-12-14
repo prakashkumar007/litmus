@@ -2,20 +2,46 @@
 Chalk and Duster - LLM Chat Utilities for Streamlit
 
 Provides conversation management and LLM interaction for the chatbot.
+Includes DDL parsing and rule generation for Great Expectations and Evidently.
 """
 
+import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
+from typing import Dict, List, Optional, TypedDict
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 # Ollama configuration
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "tinyllama")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
+
+
+class ColumnInfo(TypedDict, total=False):
+    """Type definition for parsed column information."""
+    name: str
+    type: str
+    nullable: bool
+    primary_key: bool
+    unique: bool
+    check_constraint: Optional[str]
+    enum_values: List[str]
+    default: Optional[str]
+
+
+class ParsedDDL(TypedDict, total=False):
+    """Type definition for parsed DDL result."""
+    table_name: Optional[str]
+    database: Optional[str]
+    schema: Optional[str]
+    columns: List[ColumnInfo]
+    primary_keys: List[str]
+    foreign_keys: List[str]
+    unique_constraints: List[str]
 
 
 SYSTEM_PROMPT = """You are an AI assistant for Chalk and Duster, an enterprise data quality and drift monitoring platform.
@@ -64,9 +90,18 @@ def chat_with_ollama(
     messages: List[Dict[str, str]],
     temperature: float = 0.7,
 ) -> str:
-    """Send messages to Ollama and get a response."""
+    """
+    Send messages to Ollama and get a response.
+
+    Args:
+        messages: List of message dicts with 'role' and 'content' keys
+        temperature: Sampling temperature (0.0-1.0)
+
+    Returns:
+        LLM response text or error message
+    """
     # Convert messages to a single prompt
-    prompt_parts = []
+    prompt_parts: List[str] = []
     for msg in messages:
         role = msg.get("role", "user")
         content = msg.get("content", "")
@@ -76,9 +111,9 @@ def chat_with_ollama(
             prompt_parts.append(f"User: {content}")
         elif role == "assistant":
             prompt_parts.append(f"Assistant: {content}")
-    
+
     prompt = "\n\n".join(prompt_parts) + "\n\nAssistant:"
-    
+
     try:
         with httpx.Client(timeout=OLLAMA_TIMEOUT) as client:
             response = client.post(
@@ -93,39 +128,66 @@ def chat_with_ollama(
                     },
                 },
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 return data.get("response", "I apologize, but I couldn't generate a response.")
             else:
+                logger.warning(f"Ollama returned status {response.status_code}")
                 return f"Error communicating with LLM: {response.status_code}"
-                
+
     except httpx.TimeoutException:
+        logger.warning("Ollama request timed out")
         return "The request timed out. Please try again."
     except Exception as e:
+        logger.exception("Error calling Ollama")
         return f"Error: {str(e)}"
 
 
 def extract_yaml_from_response(response: str, yaml_type: str = "quality") -> Optional[str]:
-    """Extract YAML block from LLM response."""
+    """
+    Extract YAML block from LLM response.
+
+    Args:
+        response: LLM response text
+        yaml_type: Type of YAML to extract ("quality" or "drift")
+
+    Returns:
+        Extracted YAML string or None if not found
+    """
     # Try to find labeled code block
     patterns = [
         rf"```(?:yaml)?\s*#?\s*{yaml_type}[_\s]?yaml\s*\n(.*?)```",
         rf"{yaml_type}[_\s]?yaml[:\s]*\n```(?:yaml)?\s*\n(.*?)```",
         r"```(?:yaml)?\s*\n(.*?)```",
     ]
-    
+
     for pattern in patterns:
         match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
         if match:
             return match.group(1).strip()
-    
+
     return None
 
 
-def parse_ddl(ddl: str) -> Dict[str, Any]:
-    """Parse a CREATE TABLE DDL statement to extract schema information with all constraints."""
-    result = {
+def parse_ddl(ddl: str) -> ParsedDDL:
+    """
+    Parse a CREATE TABLE DDL statement to extract schema information.
+
+    Extracts table name, columns, data types, and constraints including:
+    - NOT NULL constraints
+    - PRIMARY KEY (inline and table-level)
+    - UNIQUE constraints
+    - CHECK constraints with ENUM values
+    - DEFAULT values
+
+    Args:
+        ddl: SQL CREATE TABLE statement
+
+    Returns:
+        ParsedDDL with table info and column definitions
+    """
+    result: ParsedDDL = {
         "table_name": None,
         "database": None,
         "schema": None,
@@ -233,8 +295,24 @@ def parse_ddl(ddl: str) -> Dict[str, Any]:
     return result
 
 
-def generate_quality_rules(parsed_ddl: Dict[str, Any]) -> str:
-    """Generate Great Expectations quality YAML based on parsed DDL constraints."""
+def generate_quality_rules(parsed_ddl: ParsedDDL) -> str:
+    """
+    Generate Great Expectations quality YAML based on parsed DDL constraints.
+
+    Creates expectations for:
+    - NOT NULL columns
+    - PRIMARY KEY uniqueness
+    - UNIQUE constraints
+    - ENUM/CHECK value sets
+    - Numeric range validations
+    - VARCHAR length limits
+
+    Args:
+        parsed_ddl: Parsed DDL result from parse_ddl()
+
+    Returns:
+        YAML string with Great Expectations configuration
+    """
     table_name = parsed_ddl.get("table_name", "table")
     columns = parsed_ddl.get("columns", [])
 
@@ -330,8 +408,22 @@ def generate_quality_rules(parsed_ddl: Dict[str, Any]) -> str:
     return "\n".join(yaml_lines)
 
 
-def generate_drift_rules(parsed_ddl: Dict[str, Any]) -> str:
-    """Generate Evidently drift YAML based on parsed DDL."""
+def generate_drift_rules(parsed_ddl: ParsedDDL) -> str:
+    """
+    Generate Evidently drift YAML based on parsed DDL.
+
+    Creates monitors for:
+    - Numeric columns: distribution drift
+    - Categorical columns: category distribution
+    - Date columns: data freshness/recency
+    - Schema changes
+
+    Args:
+        parsed_ddl: Parsed DDL result from parse_ddl()
+
+    Returns:
+        YAML string with Evidently drift configuration
+    """
     table_name = parsed_ddl.get("table_name", "table")
     columns = parsed_ddl.get("columns", [])
 
