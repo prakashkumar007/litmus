@@ -1,4 +1,4 @@
-# Chalk and Duster
+# Litmus
 
 **Data Quality & AIOps Platform**
 
@@ -13,7 +13,7 @@ A self-service, multi-tenant platform for data quality monitoring, drift detecti
 - **LLM-Enhanced Alerts**: Intelligent alert summarization and root cause analysis
 - **Multi-Tenant Architecture**: Secure tenant isolation with per-tenant connections
 - **Slack Integration**: Rich Block Kit formatted notifications
-- **Airflow Orchestration**: Scheduled quality checks and drift detection
+- **Lambda/Airflow Orchestration**: Scheduled quality checks and drift detection
 
 ## Quick Start
 
@@ -36,18 +36,18 @@ open http://localhost:8000/docs
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐  │
-│   │   FastAPI       │   │   Soda Core     │   │   Ollama        │  │
-│   │   REST API      │   │   Quality       │   │   Local LLM     │  │
+│   │   LLM           │   │Great Expectation│   │   Ollama/Bedrock│  │
+│   │                 │   │   Quality       │   │   Local LLM     │  │
 │   └────────┬────────┘   └────────┬────────┘   └────────┬────────┘  │
-│            │                     │                     │            │
+│            │                     │                     │           │
 │   ┌────────┴─────────────────────┴─────────────────────┴────────┐  │
 │   │                        Core Engine                          │  │
 │   │   - YAML Validation    - Drift Detection                    │  │
 │   │   - Alert Enhancement  - Metrics Collection                 │  │
 │   └────────┬─────────────────────┬─────────────────────┬────────┘  │
-│            │                     │                     │            │
+│            │                     │                     │           │
 │   ┌────────┴────────┐   ┌────────┴────────┐   ┌────────┴────────┐  │
-│   │   PostgreSQL    │   │   Snowflake     │   │   LocalStack    │  │
+│   │   Snowflake     │   │   Snowflake     │   │   LocalStack    │  │
 │   │   Control Plane │   │   (LocalStack)  │   │   SQS/SNS       │  │
 │   └─────────────────┘   └─────────────────┘   └─────────────────┘  │
 │                                                                     │
@@ -58,21 +58,10 @@ open http://localhost:8000/docs
 
 | Service | Port | Description |
 |---------|------|-------------|
-| API | 8000 | FastAPI REST API |
 | PostgreSQL | 5432 | Control plane database |
 | LocalStack | 4566 | AWS + Snowflake emulation |
 | Ollama | 11434 | Local LLM |
-| Grafana | 3000 | Dashboards |
-| Prometheus | 9090 | Metrics |
-| Loki | 3100 | Logs |
 
-## API Endpoints
-
-- `POST /api/v1/tenants` - Create tenant
-- `POST /api/v1/connections` - Add Snowflake connection
-- `POST /api/v1/datasets` - Register dataset with YAML
-- `POST /api/v1/llm/generate-yaml` - Generate YAML from natural language
-- `GET /health` - Health check
 
 ## Environment Variables
 
