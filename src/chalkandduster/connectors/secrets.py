@@ -16,29 +16,26 @@ from chalkandduster.core.config import settings
 logger = structlog.get_logger()
 
 
-async def get_connection_credentials(secret_arn: Optional[str]) -> Dict[str, Any]:
+async def get_connection_credentials(secret_arn: str) -> Dict[str, Any]:
     """
     Retrieve connection credentials from AWS Secrets Manager.
-    
+
     Args:
         secret_arn: The ARN or name of the secret in Secrets Manager.
-                   If None, returns empty credentials (uses environment defaults).
-    
+                   Required - credentials must be stored in Secrets Manager.
+
     Returns:
         Dictionary containing credential fields (user, password, private_key, etc.)
-    
+
     Raises:
+        ValueError: If secret_arn is not provided.
         Exception: If secret retrieval fails.
     """
     if not secret_arn:
-        # Return default credentials from environment for development
-        logger.warning(
-            "No secret_arn provided, using environment defaults",
+        raise ValueError(
+            "secret_arn is required. Connection credentials must be stored in "
+            "AWS Secrets Manager. Configure secret_arn in the connection settings."
         )
-        return {
-            "user": settings.SNOWFLAKE_USER,
-            "password": settings.SNOWFLAKE_PASSWORD,
-        }
     
     session = aioboto3.Session()
     

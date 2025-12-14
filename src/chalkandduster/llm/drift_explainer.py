@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import structlog
 
-from chalkandduster.api.schemas.llm import DriftExplainResponse
+from chalkandduster.core.schemas import DriftExplainResponse
 from chalkandduster.llm.client import get_llm_client
 from chalkandduster.llm.prompts import DRIFT_EXPLAINER_SYSTEM, format_drift_prompt
 

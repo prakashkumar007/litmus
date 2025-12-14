@@ -1,4 +1,4 @@
-.PHONY: help install dev-install lint format test run docker-up docker-down clean
+.PHONY: help install dev-install lint format test run docker-up docker-down clean lambda-invoke lambda-baseline lambda-drift lambda-quality
 
 help:
 	@echo "Chalk and Duster - Development Commands"
@@ -18,6 +18,11 @@ help:
 	@echo "  docker-down   Stop all services"
 	@echo "  docker-logs   View logs from all services"
 	@echo "  docker-build  Build the application image"
+	@echo ""
+	@echo "Lambda (Local Testing):"
+	@echo "  lambda-baseline  Test baseline Lambda locally"
+	@echo "  lambda-drift     Test drift detection Lambda locally"
+	@echo "  lambda-quality   Test quality check Lambda locally"
 	@echo ""
 	@echo "Database:"
 	@echo "  db-migrate    Run database migrations"
@@ -99,6 +104,42 @@ clean:
 	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	rm -rf build dist .coverage htmlcov
+
+# Lambda Local Testing (native - requires Python 3.11+)
+lambda-baseline:
+	python3 scripts/lambda_local.py invoke baseline --event tests/events/baseline_event.json
+
+lambda-drift:
+	python3 scripts/lambda_local.py invoke drift --event tests/events/drift_event.json
+
+lambda-quality:
+	python3 scripts/lambda_local.py invoke quality --event tests/events/quality_event.json
+
+lambda-invoke:
+	@echo "Usage: make lambda-invoke FUNCTION=<baseline|drift|quality> EVENT=<path/to/event.json>"
+	python3 scripts/lambda_local.py invoke $(FUNCTION) --event $(EVENT)
+
+# Lambda Local Testing (via Docker - recommended)
+docker-lambda-baseline:
+	docker compose exec api python scripts/lambda_local.py invoke baseline --event tests/events/baseline_event.json
+
+docker-lambda-drift:
+	docker compose exec api python scripts/lambda_local.py invoke drift --event tests/events/drift_event.json
+
+docker-lambda-quality:
+	docker compose exec api python scripts/lambda_local.py invoke quality --event tests/events/quality_event.json
+
+docker-lambda-invoke:
+	@echo "Usage: make docker-lambda-invoke FUNCTION=<baseline|drift|quality> EVENT=<path/to/event.json>"
+	docker compose exec api python scripts/lambda_local.py invoke $(FUNCTION) --event tests/events/$(EVENT)
+
+# Snowflake LocalStack Testing
+test-snowflake-localstack:
+	docker compose exec api python scripts/test_snowflake_localstack.py
+
+# Setup test data (PostgreSQL, Secrets Manager, Snowflake)
+setup-test-data:
+	docker compose exec api python scripts/setup_test_data.py
 
 # Quick commands
 up: docker-up

@@ -3,33 +3,40 @@ Chalk and Duster - CRUD Operations
 """
 
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chalkandduster.db.postgres.models import Connection, Dataset, Tenant, Run
-from chalkandduster.api.schemas.tenant import TenantCreate, TenantUpdate
-from chalkandduster.api.schemas.connection import ConnectionCreate, ConnectionUpdate, ConnectionTestResult
-from chalkandduster.api.schemas.dataset import DatasetCreate, DatasetUpdate
 
 
 # =============================================================================
 # Tenant CRUD
 # =============================================================================
 
-async def create_tenant(db: AsyncSession, tenant_in: TenantCreate) -> Tenant:
+async def create_tenant(
+    db: AsyncSession,
+    name: str,
+    slug: str,
+    description: Optional[str] = None,
+    snowflake_account: Optional[str] = None,
+    snowflake_database: Optional[str] = None,
+    slack_webhook_url: Optional[str] = None,
+    slack_channel: Optional[str] = None,
+    settings: Optional[Dict[str, Any]] = None,
+) -> Tenant:
     """Create a new tenant."""
     tenant = Tenant(
-        name=tenant_in.name,
-        slug=tenant_in.slug,
-        description=tenant_in.description,
-        snowflake_account=tenant_in.snowflake_account,
-        snowflake_database=tenant_in.snowflake_database,
-        slack_webhook_url=tenant_in.slack_webhook_url,
-        slack_channel=tenant_in.slack_channel,
-        settings=tenant_in.settings,
+        name=name,
+        slug=slug,
+        description=description,
+        snowflake_account=snowflake_account,
+        snowflake_database=snowflake_database,
+        slack_webhook_url=slack_webhook_url,
+        slack_channel=slack_channel,
+        settings=settings or {},
     )
     db.add(tenant)
     await db.commit()
@@ -77,13 +84,15 @@ async def list_tenants(
 
 
 async def update_tenant(
-    db: AsyncSession, tenant: Tenant, tenant_in: TenantUpdate
+    db: AsyncSession,
+    tenant: Tenant,
+    **kwargs,
 ) -> Tenant:
-    """Update a tenant."""
-    update_data = tenant_in.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(tenant, field, value)
-    
+    """Update a tenant with provided fields."""
+    for field, value in kwargs.items():
+        if hasattr(tenant, field) and value is not None:
+            setattr(tenant, field, value)
+
     await db.commit()
     await db.refresh(tenant)
     return tenant
@@ -99,18 +108,29 @@ async def soft_delete_tenant(db: AsyncSession, tenant: Tenant) -> None:
 # Connection CRUD
 # =============================================================================
 
-async def create_connection(db: AsyncSession, conn_in: ConnectionCreate) -> Connection:
+async def create_connection(
+    db: AsyncSession,
+    tenant_id: UUID,
+    name: str,
+    account: str,
+    database_name: str,
+    warehouse: str = "COMPUTE_WH",
+    schema_name: str = "PUBLIC",
+    role_name: Optional[str] = None,
+    secret_arn: Optional[str] = None,
+    connection_type: str = "snowflake",
+) -> Connection:
     """Create a new connection."""
-    # TODO: Store credentials in Secrets Manager and get ARN
     connection = Connection(
-        tenant_id=conn_in.tenant_id,
-        name=conn_in.name,
-        connection_type=conn_in.connection_type,
-        account=conn_in.account,
-        warehouse=conn_in.warehouse,
-        database_name=conn_in.database_name,
-        schema_name=conn_in.schema_name,
-        role_name=conn_in.role_name,
+        tenant_id=tenant_id,
+        name=name,
+        connection_type=connection_type,
+        account=account,
+        warehouse=warehouse,
+        database_name=database_name,
+        schema_name=schema_name,
+        role_name=role_name,
+        secret_arn=secret_arn,
     )
     db.add(connection)
     await db.commit()
@@ -153,30 +173,34 @@ async def list_connections(
 
 
 async def update_connection(
-    db: AsyncSession, connection: Connection, conn_in: ConnectionUpdate
+    db: AsyncSession,
+    connection: Connection,
+    **kwargs,
 ) -> Connection:
-    """Update a connection."""
-    update_data = conn_in.model_dump(exclude_unset=True)
+    """Update a connection with provided fields."""
     # Remove credential fields - they should be updated in Secrets Manager
-    update_data.pop("user", None)
-    update_data.pop("private_key", None)
-    update_data.pop("private_key_passphrase", None)
-    update_data.pop("password", None)
-    
-    for field, value in update_data.items():
-        setattr(connection, field, value)
-    
+    kwargs.pop("user", None)
+    kwargs.pop("private_key", None)
+    kwargs.pop("private_key_passphrase", None)
+    kwargs.pop("password", None)
+
+    for field, value in kwargs.items():
+        if hasattr(connection, field) and value is not None:
+            setattr(connection, field, value)
+
     await db.commit()
     await db.refresh(connection)
     return connection
 
 
 async def update_connection_test_status(
-    db: AsyncSession, connection: Connection, result: ConnectionTestResult
+    db: AsyncSession,
+    connection: Connection,
+    success: bool,
 ) -> None:
     """Update connection test status."""
     connection.last_tested_at = datetime.utcnow()
-    connection.last_test_status = "success" if result.success else "failed"
+    connection.last_test_status = "success" if success else "failed"
     await db.commit()
 
 
@@ -190,21 +214,35 @@ async def delete_connection(db: AsyncSession, connection: Connection) -> None:
 # Dataset CRUD
 # =============================================================================
 
-async def create_dataset(db: AsyncSession, dataset_in: DatasetCreate) -> Dataset:
+async def create_dataset(
+    db: AsyncSession,
+    tenant_id: UUID,
+    connection_id: UUID,
+    name: str,
+    database_name: str,
+    schema_name: str,
+    table_name: str,
+    description: Optional[str] = None,
+    quality_yaml: Optional[str] = None,
+    drift_yaml: Optional[str] = None,
+    quality_schedule: Optional[str] = None,
+    drift_schedule: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+) -> Dataset:
     """Create a new dataset."""
     dataset = Dataset(
-        tenant_id=dataset_in.tenant_id,
-        connection_id=dataset_in.connection_id,
-        name=dataset_in.name,
-        description=dataset_in.description,
-        database_name=dataset_in.database_name,
-        schema_name=dataset_in.schema_name,
-        table_name=dataset_in.table_name,
-        quality_yaml=dataset_in.quality_yaml,
-        drift_yaml=dataset_in.drift_yaml,
-        quality_schedule=dataset_in.quality_schedule,
-        drift_schedule=dataset_in.drift_schedule,
-        tags=dataset_in.tags,
+        tenant_id=tenant_id,
+        connection_id=connection_id,
+        name=name,
+        description=description,
+        database_name=database_name,
+        schema_name=schema_name,
+        table_name=table_name,
+        quality_yaml=quality_yaml,
+        drift_yaml=drift_yaml,
+        quality_schedule=quality_schedule,
+        drift_schedule=drift_schedule,
+        tags=tags or [],
     )
     db.add(dataset)
     await db.commit()
@@ -242,12 +280,14 @@ async def list_datasets(
 
 
 async def update_dataset(
-    db: AsyncSession, dataset: Dataset, dataset_in: DatasetUpdate
+    db: AsyncSession,
+    dataset: Dataset,
+    **kwargs,
 ) -> Dataset:
-    """Update a dataset."""
-    update_data = dataset_in.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(dataset, field, value)
+    """Update a dataset with provided fields."""
+    for field, value in kwargs.items():
+        if hasattr(dataset, field) and value is not None:
+            setattr(dataset, field, value)
 
     await db.commit()
     await db.refresh(dataset)

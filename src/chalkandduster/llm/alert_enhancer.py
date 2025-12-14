@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import structlog
 
-from chalkandduster.api.schemas.llm import AlertEnhanceResponse
+from chalkandduster.core.schemas import AlertEnhanceResponse
 from chalkandduster.llm.client import get_llm_client
 from chalkandduster.llm.prompts import ALERT_ENHANCER_SYSTEM, format_alert_prompt
 

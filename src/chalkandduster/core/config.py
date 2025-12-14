@@ -43,9 +43,6 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Snowflake (supports LocalStack Snowflake Emulator)
     # -------------------------------------------------------------------------
-    # Mock mode - set to False for production with real Snowflake
-    SNOWFLAKE_MOCK_MODE: bool = Field(default=False)
-
     # LocalStack Snowflake Emulator settings
     SNOWFLAKE_USE_LOCALSTACK: bool = Field(default=True)
     LOCALSTACK_SNOWFLAKE_HOST: str = Field(default="snowflake.localhost.localstack.cloud")
@@ -119,6 +116,38 @@ class Settings(BaseSettings):
     AUDIT_LOG_RETENTION_DAYS: int = Field(default=2190)  # 6 years
     PHI_IN_LOGS: str = Field(default="never")
     SAMPLE_DATA_DISPLAY: str = Field(default="disabled")
+
+    # -------------------------------------------------------------------------
+    # Orchestration
+    # -------------------------------------------------------------------------
+    # Options: "airflow", "lambda"
+    ORCHESTRATION_ENGINE: str = Field(default="airflow")
+
+    # Lambda-specific settings
+    LAMBDA_QUALITY_FUNCTION_NAME: str = Field(default="chalkandduster-quality-check")
+    LAMBDA_DRIFT_FUNCTION_NAME: str = Field(default="chalkandduster-drift-detection")
+    LAMBDA_TIMEOUT_SECONDS: int = Field(default=900)  # 15 minutes max
+    LAMBDA_MEMORY_MB: int = Field(default=1024)
+
+    # -------------------------------------------------------------------------
+    # Data Quality Framework (Great Expectations)
+    # -------------------------------------------------------------------------
+    GE_DATA_CONTEXT_ROOT: str = Field(default="great_expectations")
+    GE_EXPECTATION_SUITE_PREFIX: str = Field(default="chalkandduster")
+
+    # -------------------------------------------------------------------------
+    # Drift Detection Framework (Evidently)
+    # -------------------------------------------------------------------------
+    EVIDENTLY_DRIFT_THRESHOLD: float = Field(default=0.1)
+    EVIDENTLY_STATTEST: str = Field(default="ks")  # ks, chisquare, z, wasserstein, psi
+
+    # Baseline Storage (S3)
+    BASELINE_BUCKET: str = Field(default="chalkandduster-baselines")
+    BASELINE_SAMPLE_SIZE: int = Field(default=10000)
+
+    # Reports Storage (S3)
+    REPORTS_BUCKET: str = Field(default="chalkandduster-reports")
+    REPORTS_ENABLED: bool = Field(default=True)
 
 
 @lru_cache

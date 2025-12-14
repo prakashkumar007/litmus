@@ -223,6 +223,7 @@ class Run(Base, TimestampMixin):
     passed_checks: Mapped[int] = mapped_column(default=0)
     failed_checks: Mapped[int] = mapped_column(default=0)
     error_checks: Mapped[int] = mapped_column(default=0)
+    results_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Detailed results stored as JSON
     results: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)

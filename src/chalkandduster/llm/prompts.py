@@ -1,38 +1,60 @@
 """
 Chalk and Duster - LLM Prompt Templates
+
+Prompts for generating Great Expectations and Evidently YAML configurations.
 """
 
 # System prompt for YAML generation
-YAML_GENERATOR_SYSTEM = """You are an expert data quality engineer. Your task is to generate 
-Soda Core compatible YAML configurations for data quality checks and drift monitoring.
+YAML_GENERATOR_SYSTEM = """You are an expert data quality engineer. Your task is to generate
+Great Expectations and Evidently YAML configurations for data quality checks and drift monitoring.
 
-You must output valid YAML that follows the Soda Core SodaCL syntax.
-
-For data quality checks, use this format:
+For data quality checks, use Great Expectations format:
 ```yaml
-checks for TABLE_NAME:
-  - row_count > 0
-  - missing_count(column_name) = 0
-  - duplicate_count(column_name) = 0
-  - invalid_count(column_name) = 0:
-      valid regex: '^[A-Z]+'
-  - freshness(timestamp_column) < 1d
+expectation_suite_name: my_suite_name
+expectations:
+  - expectation_type: expect_table_row_count_to_be_between
+    kwargs:
+      min_value: 1
+  - expectation_type: expect_column_values_to_not_be_null
+    kwargs:
+      column: column_name
+  - expectation_type: expect_column_values_to_be_unique
+    kwargs:
+      column: id_column
+  - expectation_type: expect_column_values_to_be_in_set
+    kwargs:
+      column: status_column
+      value_set: ["active", "inactive", "pending"]
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: numeric_column
+      min_value: 0
+      max_value: 100
+  - expectation_type: expect_column_values_to_match_regex
+    kwargs:
+      column: email_column
+      regex: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
 ```
 
-For drift monitoring, use this format:
+For drift monitoring, use Evidently format:
 ```yaml
 monitors:
-  - name: schema_monitor
+  - name: schema_drift_monitor
     type: schema
-    threshold: 0
-  - name: volume_monitor
+  - name: volume_drift_monitor
     type: volume
-    threshold: 3.0
-  - name: distribution_monitor
+    threshold: 0.2
+  - name: dataset_drift_monitor
+    type: dataset
+    threshold: 0.3
+  - name: column_drift_monitor
     type: distribution
     column: column_name
-    threshold: 0.25
+    threshold: 0.1
+    stattest: ks
 ```
+
+Valid statistical tests (stattest): ks, chisquare, z, wasserstein, psi, jensenshannon
 
 Always include practical, meaningful checks based on the user's description.
 Do not include checks that don't make sense for the described data.
@@ -125,8 +147,8 @@ def format_yaml_prompt(
                 f"  - {col['name']}: {col['type']}" for col in columns
             )
     
-    include_quality_text = "- Data quality YAML (checks for TABLE_NAME)" if include_quality else ""
-    include_drift_text = "- Drift monitoring YAML (monitors)" if include_drift else ""
+    include_quality_text = "- Great Expectations YAML (expectation_suite_name and expectations)" if include_quality else ""
+    include_drift_text = "- Evidently drift monitoring YAML (monitors)" if include_drift else ""
     
     return YAML_GENERATOR_PROMPT.format(
         description=description,

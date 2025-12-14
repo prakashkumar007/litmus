@@ -1,0 +1,61 @@
+# =============================================================================
+# CHALK AND DUSTER - Streamlit Application
+# =============================================================================
+# Enterprise Data Quality & Drift Monitoring Platform
+# Professional Streamlit UI with AI-powered chatbot
+
+# Stage 1: Build
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies from pyproject.toml
+COPY pyproject.toml README.md ./
+RUN pip install --no-cache-dir -e .
+
+# Install Streamlit, httpx, and psycopg2 for sync database access
+RUN pip install --no-cache-dir streamlit httpx psycopg2-binary
+
+# Stage 2: Runtime
+FROM python:3.11-slim AS runtime
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
+COPY src/ /app/src/
+COPY streamlit_app/ /app/streamlit_app/
+
+# Create directories for data
+RUN mkdir -p /app/great_expectations /app/evidently_reports
+
+# Environment
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app:/app/src
+
+# Expose Streamlit port
+EXPOSE 8501
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+# Run Streamlit
+CMD ["streamlit", "run", "streamlit_app/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+

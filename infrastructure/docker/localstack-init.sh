@@ -7,6 +7,13 @@
 
 echo "Initializing LocalStack resources for Chalk and Duster..."
 
+# =============================================================================
+# S3 BUCKETS (for Evidently baselines and reports)
+# =============================================================================
+echo "Creating S3 buckets..."
+awslocal s3 mb s3://chalkandduster-baselines
+awslocal s3 mb s3://chalkandduster-reports
+
 # Create SQS Queues
 echo "Creating SQS queues..."
 awslocal sqs create-queue --queue-name chalkandduster-quality-checks
@@ -123,6 +130,10 @@ echo "LocalStack initialization complete!"
 
 # List created resources
 echo ""
+echo "=== Created S3 Buckets ==="
+awslocal s3 ls
+
+echo ""
 echo "=== Created SQS Queues ==="
 awslocal sqs list-queues
 
@@ -138,4 +149,11 @@ echo ""
 echo "=== Snowflake Emulator ==="
 echo "Snowflake emulator endpoint: snowflake.localhost.localstack.cloud:4566"
 echo "Test credentials: user=test, password=test, account=test"
+
+echo ""
+echo "=== Lambda Testing ==="
+echo "Use the scripts/lambda_local.py script to test Lambda functions locally:"
+echo "  python scripts/lambda_local.py invoke baseline --event tests/events/baseline_event.json"
+echo "  python scripts/lambda_local.py invoke drift --event tests/events/drift_event.json"
+echo "  python scripts/lambda_local.py invoke quality --event tests/events/quality_event.json"
 

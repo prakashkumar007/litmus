@@ -13,7 +13,7 @@ import structlog
 
 from chalkandduster.core.config import settings
 from chalkandduster.core.exceptions import SnowflakeError
-from chalkandduster.api.schemas.connection import ConnectionTestResult
+from chalkandduster.core.schemas import ConnectionTestResult
 
 logger = structlog.get_logger()
 
@@ -77,19 +77,28 @@ class SnowflakeConnector:
 
             if self.is_localstack_mode:
                 # LocalStack Snowflake Emulator configuration
-                # See: https://docs.localstack.cloud/snowflake/
+                # See: https://docs.localstack.cloud/snowflake/integrations/snowflake-drivers/
+                # The emulator runs on snowflake.localhost.localstack.cloud DNS name
+                # which resolves to 127.0.0.1 for local API interaction
+                localstack_host = settings.LOCALSTACK_SNOWFLAKE_HOST
+
+                # If running inside Docker, use the special LocalStack DNS name
+                # that resolves correctly within the Docker network
+                if localstack_host == "localstack":
+                    # Inside Docker: use snowflake.localstack.cloud (resolves within network)
+                    connect_params["host"] = "snowflake.localstack"
+                else:
+                    # Outside Docker: use the standard LocalStack DNS name
+                    connect_params["host"] = "snowflake.localhost.localstack.cloud"
+
                 connect_params["account"] = "test"
                 connect_params["password"] = self.password or "test"
-                connect_params["host"] = settings.LOCALSTACK_SNOWFLAKE_HOST
-                connect_params["port"] = settings.LOCALSTACK_SNOWFLAKE_PORT
-                # Disable SSL for local development
-                connect_params["protocol"] = "http"
-                connect_params["insecure_mode"] = True
+                # Don't set port - LocalStack uses standard HTTPS port 443 via the DNS name
+                # but for Docker internal, we may need to specify it
 
                 logger.info(
                     "Connecting to LocalStack Snowflake emulator",
-                    host=settings.LOCALSTACK_SNOWFLAKE_HOST,
-                    port=settings.LOCALSTACK_SNOWFLAKE_PORT,
+                    host=connect_params["host"],
                 )
             else:
                 # Real Snowflake connection

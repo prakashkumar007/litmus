@@ -3,16 +3,28 @@ Chalk and Duster - YAML Generator using LLM
 """
 
 import re
-from typing import Any, Dict, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 import structlog
 
-from chalkandduster.api.schemas.llm import YAMLGenerateResponse
 from chalkandduster.llm.client import get_llm_client
 from chalkandduster.llm.prompts import YAML_GENERATOR_SYSTEM, format_yaml_prompt
 from chalkandduster.quality.validator import validate_quality_yaml, validate_drift_yaml
 
 logger = structlog.get_logger()
+
+
+@dataclass
+class YAMLGenerateResult:
+    """Result of YAML generation."""
+    success: bool
+    quality_yaml: Optional[str] = None
+    drift_yaml: Optional[str] = None
+    explanation: str = ""
+    check_count: int = 0
+    monitor_count: int = 0
+    warnings: List[str] = field(default_factory=list)
 
 
 async def generate_yaml_from_description(
@@ -21,7 +33,7 @@ async def generate_yaml_from_description(
     schema_info: Optional[Dict[str, Any]] = None,
     include_quality: bool = True,
     include_drift: bool = True,
-) -> YAMLGenerateResponse:
+) -> YAMLGenerateResult:
     """
     Generate data quality and drift YAML from natural language description.
     
@@ -87,7 +99,7 @@ async def generate_yaml_from_description(
         check_count = count_checks(quality_yaml) if quality_yaml else 0
         monitor_count = count_monitors(drift_yaml) if drift_yaml else 0
         
-        return YAMLGenerateResponse(
+        return YAMLGenerateResult(
             success=True,
             quality_yaml=quality_yaml,
             drift_yaml=drift_yaml,
@@ -96,10 +108,10 @@ async def generate_yaml_from_description(
             monitor_count=monitor_count,
             warnings=warnings,
         )
-        
+
     except Exception as e:
         logger.error("YAML generation failed", error=str(e))
-        return YAMLGenerateResponse(
+        return YAMLGenerateResult(
             success=False,
             explanation=f"Failed to generate YAML: {str(e)}",
             warnings=[str(e)],

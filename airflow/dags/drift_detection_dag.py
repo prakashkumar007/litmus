@@ -73,7 +73,7 @@ with DAG(
         import asyncio
         from datetime import datetime
         from uuid import UUID
-        from chalkandduster.drift.detector import DriftDetector
+        from chalkandduster.drift import get_drift_detector
         from chalkandduster.connectors.snowflake import SnowflakeConnector
         from chalkandduster.connectors.secrets import get_connection_credentials
         from chalkandduster.db.postgres.session import async_session_factory
@@ -120,7 +120,7 @@ with DAG(
                         role=connection.role_name,
                     )
 
-                    detector = DriftDetector(snowflake_connector=connector)
+                    detector = get_drift_detector(snowflake_connector=connector)
 
                     result = await detector.detect(
                         dataset_id=dataset_id,

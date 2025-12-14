@@ -74,7 +74,7 @@ with DAG(
         import asyncio
         from datetime import datetime
         from uuid import UUID
-        from chalkandduster.quality.executor import QualityExecutor
+        from chalkandduster.quality import get_quality_executor
         from chalkandduster.db.postgres.session import async_session_factory
         from chalkandduster.db.postgres import crud
         from chalkandduster.connectors.snowflake import SnowflakeConnector
@@ -121,7 +121,7 @@ with DAG(
                         "role": connection.role_name,
                     }
 
-                    executor = QualityExecutor(connection_config=connection_config)
+                    executor = get_quality_executor(connection_config=connection_config)
 
                     result = await executor.execute(
                         dataset_id=dataset_id,
