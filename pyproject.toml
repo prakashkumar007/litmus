@@ -66,6 +66,8 @@ dependencies = [
     "croniter>=2.0.0",
     "tenacity>=8.2.0",
     "jinja2>=3.1.0",
+    "typer[all]>=0.9.0",
+    "rich>=13.7.0",
 ]
 
 [project.optional-dependencies]
@@ -95,7 +97,8 @@ lambda = [
 ]
 
 [project.scripts]
-chalkandduster = "chalkandduster.main:run"
+litmus = "chalkandduster.cli:app"
+chalkandduster = "chalkandduster.cli:app"
 
 [build-system]
 requires = ["hatchling"]

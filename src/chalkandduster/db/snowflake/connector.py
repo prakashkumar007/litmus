@@ -78,27 +78,26 @@ class SnowflakeConnector:
             if self.is_localstack_mode:
                 # LocalStack Snowflake Emulator configuration
                 # See: https://docs.localstack.cloud/snowflake/integrations/snowflake-drivers/
-                # The emulator runs on snowflake.localhost.localstack.cloud DNS name
-                # which resolves to 127.0.0.1 for local API interaction
-                localstack_host = settings.LOCALSTACK_SNOWFLAKE_HOST
+                # The emulator runs at snowflake.localhost.localstack.cloud:4566
+                #
+                # IMPORTANT: Connection parameters must include:
+                # - host: snowflake.localhost.localstack.cloud (resolves to LocalStack)
+                # - port: 4566 (LocalStack's HTTP port)
+                # - protocol: http (LocalStack uses HTTP, not HTTPS)
+                # - account: test.localstack (required format for LocalStack)
+                # - insecure_mode: True (disable SSL verification)
 
-                # If running inside Docker, use the special LocalStack DNS name
-                # that resolves correctly within the Docker network
-                if localstack_host == "localstack":
-                    # Inside Docker: use snowflake.localstack.cloud (resolves within network)
-                    connect_params["host"] = "snowflake.localstack"
-                else:
-                    # Outside Docker: use the standard LocalStack DNS name
-                    connect_params["host"] = "snowflake.localhost.localstack.cloud"
-
-                connect_params["account"] = "test"
+                connect_params["host"] = "snowflake.localhost.localstack.cloud"
+                connect_params["port"] = settings.LOCALSTACK_SNOWFLAKE_PORT
+                connect_params["protocol"] = "http"
+                connect_params["account"] = "test.localstack"
                 connect_params["password"] = self.password or "test"
-                # Don't set port - LocalStack uses standard HTTPS port 443 via the DNS name
-                # but for Docker internal, we may need to specify it
+                connect_params["insecure_mode"] = True
 
                 logger.info(
                     "Connecting to LocalStack Snowflake emulator",
                     host=connect_params["host"],
+                    port=connect_params["port"],
                 )
             else:
                 # Real Snowflake connection
